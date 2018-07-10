@@ -379,7 +379,7 @@ namespace SM64Paint
             else AreaComboBox.Enabled = false;
             UpdateStatusText();
             if (ROMManager.SM64ROM.getSegmentStart(0x0E) < 0x1200000) { TexturesGroupBox.Visible = false; return; }
-            ROMManager.AdjustCombiners();
+            ROMManager.FixSkeluxBug();
             groupBoxForce.Visible = ROMManager.LevelHasLighting();
             if(!ObjectView)TextureEditorCreation();
         }
@@ -402,7 +402,7 @@ namespace SM64Paint
             ROMManager.InitialiseModelLoad(ClientRectangle, RenderPanel, Width, Height);
             UpdateStatusText();
             if (ROMManager.SM64ROM.getSegmentStart(0x0E) < 0x1200000) { TexturesGroupBox.Visible = false; groupBoxForce.Visible = false;  return; }
-            ROMManager.AdjustCombiners();
+            ROMManager.FixSkeluxBug();
             groupBoxForce.Visible = ROMManager.LevelHasLighting();
             if(!ObjectView)TextureEditorCreation();
         }

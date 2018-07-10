@@ -13,6 +13,7 @@ using OpenTK;
 using System;
 using System.Drawing;
 using System.IO;
+using System.Windows.Forms;
 
 public class ROMManager
 {
@@ -125,8 +126,94 @@ public class ROMManager
         Renderer.Render(ClientRectangle, Width, Height, RenderPanel);
     }
 
-    public static void AdjustCombiners()
+    public static void FixSkeluxBug()
     {
+        DialogResult Continue = MessageBox.Show("Should UVs be moved to 1 pixel to up-left (editor bug fix)", "Skelux is stupid", MessageBoxButtons.YesNo);
+
+        if (Continue == DialogResult.No)
+        {
+            return;
+        }
+
+
+        foreach (uint[] F5CMDs in Textures.F5CMDArray)
+        {
+            byte WidthsizeByte = SM64ROM.getByte(F5CMDs[0] + 7);
+            ushort HeightsizeShort = SM64ROM.ReadTwoBytes(F5CMDs[0] + 5);
+            int ogHeightPower = (HeightsizeShort >> 6 & 0x0F);
+            int ogWidthPower = (WidthsizeByte >> 4);
+            int width = (int)Math.Pow(2, ogWidthPower);
+            int height = (int)Math.Pow(2, ogHeightPower);
+
+            Console.WriteLine("{0} {1}", width, height);
+
+            for (uint i = 0; i < F5CMDs.Length; i++)
+            {
+                bool exitUVcorrection = false;
+                bool isFailedToResize = true;
+                for (uint j = F5CMDs[i] + 8; j < SM64ROM.getEndROMAddr(); j += 8) //UV automatic correction
+                {
+                    if (exitUVcorrection) break;
+                    switch (SM64ROM.getByte(j))
+                    {
+                        case 0xBF:
+                            UInt32 UVStart = 0;
+                            double[][] UVs = new double[2][]; for (int k = 0; k < 2; k++) { UVs[k] = new double[3]; }
+                            for (uint k = j; k > j - 0x800; k -= 8)
+                            {
+                                if (SM64ROM.getByte(k) == 0x04)
+                                {
+                                    UVStart = SM64ROM.readSegmentAddr(SM64ROM.ReadFourBytes(k + 4)) + 8; break;
+                                }
+                            }
+                            if (UVStart == 0) break;
+                            for (uint k = 5; k < 8; k++)
+                            {
+                                UInt32 addr = Vertex.getAddrFromTriIndex(UVStart, SM64ROM.getByte(j + k));
+                                
+                                double U = (short)SM64ROM.ReadTwoBytes(addr);
+                                double V = (short)SM64ROM.ReadTwoBytes(addr + 2);
+
+                                Console.WriteLine("\t Init {0} {1}", U, V);
+
+                                U = Math.Round((U + 1) / (width)) * width;
+                                V = Math.Round((V + 1) / (height)) * height;
+
+                                Console.WriteLine("\t Fix  {0} {1}", U, V);
+
+                                UVs[0][k - 5] = U;
+                                UVs[1][k - 5] = V;
+                            }
+                            UVs = Vertex.UVChecker(UVs, out bool isFailedToResizeUVs);
+
+                            for (uint k = 5; k < 8; k++)
+                            {
+                                UInt32 addr = Vertex.getAddrFromTriIndex(UVStart, SM64ROM.getByte(j + k));
+                                if (UVs[0][k - 5] > 0x7fff || UVs[0][k - 5] < -0x8000)
+                                {
+                                    isFailedToResize = true;
+                                    break;
+                                }
+                                SM64ROM.WriteTwoBytes(addr, (ushort)Convert.ToInt16(UVs[0][k - 5]));
+                                SM64ROM.WriteTwoBytes(addr + 2, (ushort)Convert.ToInt16(UVs[1][k - 5]));
+                            }
+                            break;
+                        case 0xFD:
+                            exitUVcorrection = true;
+                            break;
+                        case 0x06:
+                            exitUVcorrection = true;
+                            break;
+                        case 0xB8:
+                            exitUVcorrection = true;
+                            break;
+                    }
+                }
+            }
+        }
+        //ROM SM64ROM = ROMManager.SM64ROM;
+
+
         // One duck cries when your transparency disappears
     }
 
